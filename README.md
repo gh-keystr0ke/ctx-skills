@@ -2,7 +2,16 @@
 
 Agent skills that teach coding agents how and when to use [`ctx`](../ctx) — a local-first tool that links product intent (Features, Requirements, Invariants, Decisions) to code with provenance and confidence.
 
-There is one skill (`skills/ctx/SKILL.md`) with a single canonical copy. It is agent-agnostic: the `SKILL.md` format (`name` + `description` frontmatter, Markdown body, triggered by progressive disclosure) is shared across Claude Code, Codex CLI, and Google Antigravity. The `claude/`, `codex/`, and `antigravity/` directories are symlinks into `skills/ctx` so there is exactly one file to edit.
+There is one skill (`skills/ctx/`) with a single canonical copy. It is agent-agnostic: the `SKILL.md` format (`name` + `description` frontmatter, Markdown body, triggered by progressive disclosure) is shared across Claude Code, Codex CLI, and Google Antigravity. The `claude/`, `codex/`, and `antigravity/` directories are symlinks into `skills/ctx` so there is exactly one directory to edit.
+
+`skills/ctx/SKILL.md` is the entry point: repository detection, the mandatory per-task pipeline (compile context → check impact → edit → **review before every commit** → **keep `.context/` in sync** → commit → re-index), and a scenario cookbook. `skills/ctx/references/` holds the material that's too deep for the entry point but still needs to travel with the skill into any target repository (since that repository won't have `ctx`'s own `docs/` checked out):
+
+| File | Covers |
+| --- | --- |
+| `references/commands.md` | Full CLI flag reference for every subcommand, plus `ctx status`'s JSON fields. |
+| `references/authoring-context.md` | `.context/` document schema, which document type to pick, canonical-symbol-path rules per language, visibility. |
+| `references/onboarding.md` | Bootstrapping a repository onto ctx — by hand, or fully automated by mining Git history/code comments/GitLab and running an AI review pass. |
+| `references/federation.md` | Sharing product knowledge and tracing HTTP requests across sibling repositories on the same team. |
 
 ## Install
 
