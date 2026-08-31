@@ -10,27 +10,55 @@ There is one skill (`skills/ctx/`) with a single canonical copy. It is agent-agn
 | --- | --- |
 | `references/commands.md` | Full CLI flag reference for every subcommand, plus `ctx status`'s JSON fields. |
 | `references/authoring-context.md` | `.context/` document schema, which document type to pick, canonical-symbol-path rules per language, visibility. |
-| `references/onboarding.md` | Bootstrapping a repository onto ctx — by hand, or fully automated by mining Git history/code comments/GitLab and running an AI review pass. |
+| `references/onboarding.md` | Bootstrapping a repository onto ctx — by hand, or fully automated by mining Git history, code comments, GitLab, and referenced Jira issues, then running an AI review pass. |
 | `references/federation.md` | Sharing product knowledge and tracing HTTP requests across sibling repositories on the same team. |
+
+## Compatibility
+
+The current skill targets `ctx` 0.6.0. Its core format is portable Agent Skills Markdown; agent-specific installation paths and optional UI metadata are kept outside the workflow itself.
 
 ## Install
 
-Pick the agent(s) you use. All commands are run from the target project's repository root (the project that uses `ctx`, not this repo).
+All commands are run from the target project's repository root (the project that uses `ctx`, not this repo).
+
+### Skills CLI (recommended)
+
+With Node.js 18 or newer, let the Agent Skills installer discover `ctx` and select the agent targets interactively:
+
+```bash
+npx skills add gh-keystr0ke/ctx-skills
+```
+
+The default scope is the current project. To inspect the package without installing it:
+
+```bash
+npx skills add gh-keystr0ke/ctx-skills --list
+```
+
+For a non-interactive Claude Code + Codex installation:
+
+```bash
+npx skills add gh-keystr0ke/ctx-skills --skill ctx --agent claude-code codex --yes
+```
+
+### Manual installation
+
+Use this fallback when Node.js is unavailable or when you want to control the exact target path. Copying `ctx/.` into the destination also makes the command safe to repeat without creating a nested `ctx/ctx` directory.
 
 ### Claude Code
 
 Project-scoped (checked into the target repo, shared with the team):
 
 ```bash
-mkdir -p .claude/skills
-cp -r /path/to/ctx-skills/skills/ctx .claude/skills/ctx
+mkdir -p .claude/skills/ctx
+cp -R /path/to/ctx-skills/skills/ctx/. .claude/skills/ctx/
 ```
 
 Personal (available in every project on this machine):
 
 ```bash
-mkdir -p ~/.claude/skills
-cp -r /path/to/ctx-skills/skills/ctx ~/.claude/skills/ctx
+mkdir -p ~/.claude/skills/ctx
+cp -R /path/to/ctx-skills/skills/ctx/. ~/.claude/skills/ctx/
 ```
 
 ### Codex CLI
@@ -38,24 +66,31 @@ cp -r /path/to/ctx-skills/skills/ctx ~/.claude/skills/ctx
 Project-scoped:
 
 ```bash
-mkdir -p .agents/skills
-cp -r /path/to/ctx-skills/skills/ctx .agents/skills/ctx
+mkdir -p .agents/skills/ctx
+cp -R /path/to/ctx-skills/skills/ctx/. .agents/skills/ctx/
 ```
 
 Personal:
 
 ```bash
-mkdir -p ~/.codex/skills
-cp -r /path/to/ctx-skills/skills/ctx ~/.codex/skills/ctx
+mkdir -p ~/.codex/skills/ctx
+cp -R /path/to/ctx-skills/skills/ctx/. ~/.codex/skills/ctx/
 ```
 
 ### Google Antigravity
 
-Antigravity currently only reads skills from the user's home directory, not per-project, for both the CLI and the IDE:
+Project/workspace-scoped:
 
 ```bash
-mkdir -p ~/.gemini/skills
-cp -r /path/to/ctx-skills/skills/ctx ~/.gemini/skills/ctx
+mkdir -p .agents/skills/ctx
+cp -R /path/to/ctx-skills/skills/ctx/. .agents/skills/ctx/
+```
+
+Personal, available across Antigravity products and projects:
+
+```bash
+mkdir -p ~/.gemini/config/skills/ctx
+cp -R /path/to/ctx-skills/skills/ctx/. ~/.gemini/config/skills/ctx/
 ```
 
 ## MCP (recommended alongside the skill)
