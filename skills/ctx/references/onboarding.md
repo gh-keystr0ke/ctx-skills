@@ -6,7 +6,7 @@ There are two ways to get from zero to a usable `.context/` baseline: hand-autho
 
 ## 0. Prerequisites
 
-- Rust 1.85+ and Git installed, and the `ctx` binary on `PATH` (or built via `cargo install --locked --path crates/ctx-cli` from the `ctx` source tree).
+- Rust 1.88+ and Git installed, and the `ctx` binary on `PATH` (or built via `cargo install --locked --path crates/ctx-cli` from the `ctx` source tree).
 - A Git repository with at least one commit. `ctx init` and `ctx index` only ever read committed source content.
 - Decide `languages` for `.ctx/config.toml` up front: `python`, `rust`, `go`, and `goose` (SQL migrations) are the built-in modules — anything else currently indexes as unrecognized source, not a hard failure, but won't produce symbols/calls/tests.
 - **Onboarding a repository you don't own or can't push into?** Run `ctx context-store set <path>` (add `--git` for the same commit-before-index guarantee this checkout's `.context/` normally has) *before* `ctx init`, so `.context/`/`.ctx-candidates/` are scaffolded at that redirected location instead of inside the checkout — nothing below writes into the repository itself. See `commands.md` and `configuration.md#redirecting-the-context-store-ctx-context-store` in the `ctx` source tree.
@@ -39,7 +39,8 @@ Best when the repository has real history worth mining: meaningful commit messag
 # 1. Ingest source material (idempotent, safe to re-run; --since narrows `git` to newer commits)
 ctx ingest git
 ctx ingest code-comments
-ctx ingest gitlab              # only if [gitlab] is configured in .ctx/config.toml and CTX_GITLAB_TOKEN is set
+ctx ingest gitlab              # only if [gitlab] is configured; CTX_GITLAB_TOKEN is optional for public projects
+ctx ingest jira                # run after git/gitlab above -- only fetches issues they already reference, plus one hop of related issues; needs [jira] + CTX_JIRA_EMAIL/CTX_JIRA_TOKEN (Jira Cloud only)
 
 # 2. Have an AI agent propose typed candidates from that material
 ctx enrich --agent claude      # or --agent codex / --agent antigravity — needs that CLI authenticated on PATH
@@ -64,7 +65,7 @@ Notes:
 - `ctx enrich` shells out to a real, already-authenticated agent CLI and analyzes one bounded artifact neighborhood at a time — expect it to take real wall-clock time (and, for hosted models, real cost) proportional to the number of ingested artifacts. It's fine to run it in the background and check back.
 - `--auto`'s decisions are always recorded as agent-made — `ctx explain` renders them "Auto-verified", not human-reviewed. Report this honestly to the user; it is a strong starting baseline, not equivalent to a human having read every document. For a first-time onboarding of an unfamiliar codebase, spot-check a sample of the resulting `.context/*.yaml` documents (`ctx explain <id>`) before treating the baseline as trustworthy, and mention to the user that this is a good moment to skim.
 - A likely restatement of an already-active document is left pending unless `--force` — this is deduplication working as intended, not a bug to route around by default.
-- If GitLab isn't configured or the team doesn't use it, skip that ingest source — `git` and `code-comments` alone still produce a useful candidate set for most repositories.
+- If GitLab or Jira isn't configured or the team doesn't use it, skip that ingest source — `git` and `code-comments` alone still produce a useful candidate set for most repositories. When the team's branches/commits already carry ticket keys (e.g. `PSI-1122-fix`), `ctx ingest jira` alone is often the highest-value addition: the ticket key becomes an issue artifact's `external_id`, so `ctx-core`'s existing deterministic ticket-key linking resolves those branches/commits to the issue with no extra step.
 
 ## 3. Iterate to `ready`
 
