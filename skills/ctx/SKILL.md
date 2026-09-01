@@ -13,6 +13,7 @@ This file is the entry point. Deeper material lives alongside it and is loaded o
 - `references/authoring-context.md` — `.context/` document schema and exact canonical-symbol-path rules per language.
 - `references/onboarding.md` — bootstrapping a repository onto ctx, by hand or fully automated by mining existing history.
 - `references/federation.md` — sharing product knowledge and tracing requests across sibling repositories.
+- `references/status-recovery.md` — what to do when `ctx status` reports anything other than a clean, current, healthy index.
 
 ## Does this repository use ctx?
 
@@ -20,7 +21,9 @@ Check for `.ctx/config.toml` and/or a `.context/` directory at the repository ro
 
 - **Neither exists and the user hasn't asked to set ctx up:** this skill's day-to-day workflow doesn't apply. Don't run `ctx init` unprompted — ctx is opt-in.
 - **Neither exists and the user asks to add ctx, bootstrap product context, or "set up ctx here":** go to `references/onboarding.md`.
-- **`.ctx/` exists:** this skill applies for the rest of the session. Continue below.
+- **`.ctx/` exists:** this skill applies for the rest of the session, non-negotiably. Continue below.
+
+**When `.ctx/` or `.context/` exists, ctx's own data is the higher-signal source, not a supplement to reading the repository.** `.context/` documents record *why* code exists and what it must keep true — the product intent, prior decisions, and invariants a fresh read of the diff or surrounding files cannot recover on its own. Reaching for `grep`/broad file reads before `ctx context`/`ctx impact` on a repository that has `.ctx/` means working from a weaker signal when a stronger one is one command away. Do not skip straight to general repository exploration just because it feels more familiar — the per-task pipeline below is how this skill is meant to be used, every time, not only when convenient.
 
 ## Two ways to call ctx
 
@@ -36,17 +39,24 @@ Prefer the MCP server when it is connected (check your available tools for `get_
 
 ## The per-task pipeline
 
-Run every non-trivial coding task through this shape. Steps 1 and 4 are not optional — see the next two sections.
+Run every non-trivial coding task through this shape. Steps 0, 1, 2, and 4 are not optional — see the next sections. This is the default way to work in a `.ctx/` repository, not an extra pass reserved for large or risky changes.
 
 ```
-1. ctx context "<task>" --symbol ... --file ... --json   # compile bounded context BEFORE editing
-2. ctx impact <symbol>  --json                            # before touching code you didn't write, check blast radius
+0. ctx status --json                                       # ALWAYS first: confirm the index is healthy before trusting anything it returns
+1. ctx context "<task>" --symbol ... --file ... --json      # compile bounded context BEFORE editing — scoped to this task, not a broad survey
+2. ctx impact <symbol>  --json                              # before touching any symbol you didn't write, check blast radius
 3.  ...edit the code...
-4. ctx review --base <branch point> --json                 # ALWAYS, before calling the task done / opening a PR / committing
-5. Update .context/ if this changed a product contract        # see "Keep .context/ in sync" below
-6. git commit                                               # only after 4 and 5
+4. ctx review --base <branch point> --json                  # ALWAYS, before calling the task done / opening a PR / committing
+5. Update .context/ if this changed a product contract          # see "Keep .context/ in sync" below
+6. git commit                                                # only after 4 and 5
 7. ctx index                                                 # after committing, so future queries see the new commit
 ```
+
+**If step 4 (or a test run) surfaces something to fix, the loop repeats, not just the fix:** re-run `ctx impact` on whatever new symbol the fix touches, make the change, then re-run `ctx review` before considering the task done again. A finding addressed without a follow-up review is unverified, not fixed.
+
+### 0. Before anything else: confirm the index is trustworthy
+
+Run `ctx status --json` at the start of the session and re-check it any time you've been away from the repository (after a pull, a rebase, a big merge). Its `health` field gates how much you should trust `ctx context`/`ctx impact`/`ctx review` output below. `health: "ready"` (or an absent/`"ok"`-equivalent field on older builds) means proceed normally. Anything else — `needs_attention`, `needs_index`, `needs_mappings`, `needs_context` — go to [When `ctx status` isn't `ready`](#when-ctx-status-isnt-ready) before trusting further output.
 
 ### 1–2. Before and during editing
 
@@ -56,7 +66,7 @@ Run every non-trivial coding task through this shape. Steps 1 and 4 are not opti
 ctx context "<one-line description of the task>" --symbol <known symbol> --json
 ```
 
-Read the returned Requirements, Invariants, and Decisions before touching code. Treat them as constraints on the change, not background reading — an Invariant is something whose violation is a bug by definition.
+Read the returned Requirements, Invariants, and Decisions before touching code. Treat them as constraints on the change, not background reading — an Invariant is something whose violation is a bug by definition. Scope this to the task at hand: pass the `--symbol`/`--file` seeds you already know are relevant rather than issuing a broad, unscoped query and hoping the token budget lands on the right things — a hard scope boundary returns a smaller, denser, more relevant set than lexical auto-seeding does. Pulling more than the current task needs just to "be thorough" wastes the token budget on material you won't act on and buries the constraints that do matter.
 
 **Before editing a symbol you did not write**, especially in an unfamiliar area, check what depends on it:
 
@@ -65,6 +75,8 @@ ctx impact <file-or-symbol> --json
 ```
 
 This returns the bounded set of Features/Requirements/Invariants/Decisions, related implementation, data contracts, and tests connected to that symbol — not the whole reachable graph. Not sure of the exact symbol name? `ctx find <name>` first.
+
+`ctx impact` and `ctx review` are both cheap, bounded, deterministic checks — nowhere near the cost of a full test-suite run — and they frequently catch a blast-radius surprise or a missed contract before you'd otherwise discover it via a failing test or, worse, in review. Run them early rather than treating them as a formality to satisfy right before committing.
 
 ## Non-negotiable: review before every commit
 
@@ -122,6 +134,15 @@ If you're not sure whether a change is "product-observable" enough to warrant th
 
 `ctx status --json` also reports, and you should act on: `schema_divergences` (ORM vs. migration-history mismatches), `unmapped_intents` (active Requirements/Invariants/Decisions with no implementation/test link — `health: "needs_mappings"`; Features are organizing parents and are excluded), and `stale_claims` (semantic relationships whose code changed since last confirmed). Its own `suggested_actions` array names the exact next command — prefer that over guessing.
 
+## When `ctx status` isn't `ready`
+
+Seeing `health` as anything other than `ready` is common, not an emergency. Do not panic-load the whole repository into context to compensate, and do not assume the tool is broken — work the same bounded, evidence-first way this skill always does:
+
+1. **Read `ctx status --json` again, specifically.** `health`, `notices`, and `suggested_actions` name the exact cause and the exact next command — don't guess from the summary alone.
+2. **Tell `needs_index`/`needs_attention`/`needs_mappings`/`needs_context` apart** — they call for different responses, not the same reflexive fix. Full decision procedure and worked examples: `references/status-recovery.md`. In short: a stale index (`index_state: "behind"`/`"not_indexed"`) wants `ctx index` (only over a clean working tree for the paths that require a commit); uncommitted inputs blocking that want a commit, not a workaround; unresolved mappings or stale claims want `ctx explain`/investigation, not a blind bulk re-verify.
+3. **Fix only what your current diff is responsible for.** If the unhealthy state predates your task (pre-existing stale claims from someone else's earlier change, for instance), say so, leave it alone, and continue your own bounded, read-only-safe work — don't expand scope into an unrelated repository-wide cleanup no one asked for.
+4. **Never run `ctx verify --stale` (or any bulk AI re-verification) automatically to "clean up" a `needs_attention` state.** It shells out to a real agent CLI per stale claim, which costs time and money and is explicitly opt-in — see "What not to do" below. Report what's stale and let the user decide whether it's worth the cost.
+
 ## Epistemic discipline
 
 Every claim ctx surfaces has a class:
@@ -142,3 +163,5 @@ A `stale` relationship means the code changed enough that a previously-confirmed
 - Do not treat `ctx verify --knowledge --auto`'s "Auto-verified" documents as equivalent to human review when reporting to the user — say plainly that they were agent-decided.
 - Do not set up `ctx registry`/federation for a single-repository project — it exists for multi-service teams with sibling local checkouts; see `references/federation.md` for when it actually applies.
 - Do not skip the pre-commit `ctx review` or the `.context/` documentation update because a change "seems obviously fine" — those are exactly the two non-negotiable steps above.
+- Do not default to plain repository reading (`grep`, browsing files) instead of `ctx context`/`ctx impact` when `.ctx/` or `.context/` exists — ctx's own data is the higher-signal source for product intent and cannot be reliably reconstructed from the code alone; see "Does this repository use ctx?" above.
+- Do not respond to a `health` other than `ready` by loading the entire repository for context or by running bulk AI re-verification on your own initiative — diagnose the specific cause via `ctx status --json` and fix only what your current task is responsible for; see "When `ctx status` isn't `ready`" above.
