@@ -12,10 +12,11 @@ There is one skill (`skills/ctx/`) with a single canonical copy. It is agent-agn
 | `references/authoring-context.md` | `.context/` document schema, which document type to pick, canonical-symbol-path rules per language, visibility. |
 | `references/onboarding.md` | Bootstrapping a repository onto ctx — by hand, or fully automated by mining Git history, code comments, GitLab, and referenced Jira issues, then running an AI review pass. |
 | `references/federation.md` | Sharing product knowledge and tracing HTTP requests across sibling repositories on the same team. |
+| `references/status-recovery.md` | Diagnosing each non-ready `ctx status` state and choosing the bounded recovery action. |
 
 ## Compatibility
 
-The current skill targets `ctx` 0.6.0. Its core format is portable Agent Skills Markdown; agent-specific installation paths and optional UI metadata are kept outside the workflow itself.
+The current skill targets `ctx` 0.7.3. Its core format is portable Agent Skills Markdown; agent-specific installation paths and optional UI metadata are kept outside the workflow itself.
 
 ## Install
 

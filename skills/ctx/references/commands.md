@@ -1,6 +1,6 @@
 # Full CLI reference
 
-Every command accepts two global flags: `--json` for stable machine-readable output, and `-v`/`-vv` (repeatable) for more verbose diagnostics. Because they are global, both forms are valid: `ctx --json impact ...` and `ctx impact ... --json`.
+Every command accepts these global flags: `--json` for stable machine-readable stdout; repeatable `-v`/`-vv`/`-vvv` for progressively richer stderr diagnostics; `--debug` for a full timestamped JSONL trace under `.ctx/logs`; and `--siga-siga` to pace agent calls made by `enrich`, `verify --knowledge --auto`, and `verify --stale`. Because they are global, both forms are valid: `ctx --json impact ...` and `ctx impact ... --json`.
 
 ## Setup and indexing
 
@@ -52,12 +52,18 @@ Full workflow and philosophy: `onboarding.md` § mining.
 
 | Command | Flags | Purpose |
 | --- | --- | --- |
-| `ctx ingest <source>` | `--since <OID>` | Normalize external artifacts into their own store. `source` is `git` (commit messages/branch names; `--since` applies only here), `code-comments` (comments/docstrings attributed to nearest symbol), `gitlab` (issues/MRs/comments — needs `[gitlab]` in `.ctx/config.toml`; `CTX_GITLAB_TOKEN` is optional for public projects and required for private/authenticated access), or `jira` (Jira Cloud issues/comments already referenced by known artifacts, plus one hop of related issues — needs `[jira]` in `.ctx/config.toml` and `CTX_JIRA_EMAIL`/`CTX_JIRA_TOKEN`; run after `git`/`gitlab` so there's something to reference). |
-| `ctx enrich` | `--agent <claude\|codex\|antigravity>` (default `claude`), `--model <NAME>`, `--allow-ungrounded-symbols` | Ask an AI agent CLI already on `PATH` to propose typed knowledge candidates from ingested artifacts, one bounded neighborhood at a time. Always produces `pending` candidates, never asserted facts. |
+| `ctx ingest <source>` | `--since <OID>`, `--scope <all\|business-linked>` (default `all`), `--related-depth <N>` (default `0`), `--reconcile` | Normalize external artifacts into their own store. `source` is `git` (commit messages/branch names; `--since` applies only here), `code-comments` (comments/docstrings attributed to the nearest symbol; `--reconcile` treats successfully analyzed HEAD as the complete snapshot and removes entries no longer present), `gitlab`, or `jira`. In default `all` scope, GitLab ingests issues/MRs/comments and Jira ingests referenced project issues with the legacy one-hop expansion. In `business-linked` scope, GitLab fetches details only for MRs selected from current Git and fetches no GitLab issues; Jira derives keys only from current Git plus those selected MRs/comments, with `--related-depth` controlling Jira expansion. Run `git` before scoped GitLab/Jira. GitLab needs `[gitlab]` and, for private/authenticated access, `CTX_GITLAB_TOKEN`; Jira needs `[jira]`, `CTX_JIRA_EMAIL`, and `CTX_JIRA_TOKEN`. |
+| `ctx enrich` | `--agent <claude\|codex\|antigravity>` (default `claude`), `--model <NAME>`, `--allow-ungrounded-symbols`, `--scope <all\|business-linked>` (default `all`), `--related-depth <N>` (default `0`) | Ask an AI agent CLI already on `PATH` to propose typed knowledge candidates from ingested artifacts. Default `all` scope analyzes one bounded neighborhood at a time. `business-linked` scope emits exactly one Jira-anchored bundle per retained Jira issue; linked MRs, commits, comments, symbols, and tests are supporting evidence and an unanchored branch/commit/MR is never submitted alone. Always produces `pending` candidates, never asserted facts. Use the same scope/depth as ingestion. |
 | `ctx verify` | `--accept <FINGERPRINT>` \| `--reject <FINGERPRINT>`, `--author <NAME>` (default `local-user`) | List or decide heuristic implementation-link candidates (deterministic relation suggestions from indexing — not AI-derived). |
 | `ctx verify --knowledge` | `--accept <FINGERPRINT> --id <STABLE-ID>` \| `--reject <FINGERPRINT>`, `--force`, `--author <NAME>` | List or decide pending AI-derived knowledge candidates from `ctx enrich`. Accepting writes an ordinary `.context/*.yaml` document. `--force` overrides the "looks like a restatement of an already-active document" refusal. |
 | `ctx verify --knowledge --auto` | `--agent <NAME>`, `--model <NAME>`, `--id-prefix <PREFIX>` (required) | Have a review agent decide every pending knowledge candidate in bulk. Clusters related candidates first; can merge a cluster into one document. Every resulting decision is recorded as agent-made — `ctx explain` renders it "Auto-verified", never as human review. |
 | `ctx verify --stale` | `--agent <NAME>`, `--model <NAME>`, `--author <NAME>` | Re-review every currently stale semantic claim through an independent agent. `accept` is binding (reactivates precisely that relationship); `reject` is never applied automatically — only ever printed as a suggestion for a human. |
+
+## Artifact maintenance
+
+| Command | Flags | Purpose |
+| --- | --- | --- |
+| `ctx artifacts prune` | `--scope business-linked` (default and currently the only value), `--related-depth <N>` (default `0`), `--apply` | Plan removal of stored artifacts outside deterministic business-linked scope. It is a dry run unless `--apply` is present. `--apply` deletes exactly the previewed artifact set plus local artifact links and analysis rows atomically; it never changes `.context/` or `.ctx-candidates/`, and reports pending candidates whose evidence intersects the prune set. Default output is a summary, `-v` groups prune reasons, `-vv` lists identities with reasons, and `--json` returns the complete plan. Always preview with the same scope/depth and obtain explicit user authorization before applying. |
 
 ## Federation (multiple repositories)
 

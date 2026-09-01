@@ -9,7 +9,7 @@ description: Use ctx, a local-first tool that links product intent (Features, Re
 
 This file is the entry point. Deeper material lives alongside it and is loaded on demand:
 
-- `references/commands.md` — full CLI flag reference for every subcommand.
+- `references/commands.md` — full CLI flag reference for every subcommand, including scoped artifact mining and maintenance.
 - `references/authoring-context.md` — `.context/` document schema and exact canonical-symbol-path rules per language.
 - `references/onboarding.md` — bootstrapping a repository onto ctx, by hand or fully automated by mining existing history.
 - `references/federation.md` — sharing product knowledge and tracing requests across sibling repositories.
@@ -27,7 +27,7 @@ Check for `.ctx/config.toml` and/or a `.context/` directory at the repository ro
 
 ## Two ways to call ctx
 
-Prefer the MCP server when it is connected (check your available tools for `get_context`, `get_impact`, `explain_relation`, `find_requirements`, `review_change`). Otherwise fall back to the `ctx` CLI with `--json` for parseable output. Both call the identical underlying logic — there is no behavioral difference, only transport. MCP is deliberately read-only and covers five query tools only; everything mutating (`index`, `ingest`, `enrich`, `verify`, `init`, `registry`, `export`, `sync`) is CLI-only — see `references/commands.md`.
+Prefer the MCP server when it is connected (check your available tools for `get_context`, `get_impact`, `explain_relation`, `find_requirements`, `review_change`). Otherwise fall back to the `ctx` CLI with `--json` for parseable output. Both call the identical underlying logic — there is no behavioral difference, only transport. MCP is deliberately read-only and covers five query tools only; everything mutating (`index`, `ingest`, `enrich`, `artifacts prune`, `verify`, `init`, `registry`, `export`, `sync`) is CLI-only — see `references/commands.md`.
 
 | MCP tool           | CLI equivalent                          | Notes |
 |---------------------|------------------------------------------|-------|
@@ -124,6 +124,9 @@ If you're not sure whether a change is "product-observable" enough to warrant th
 | Tracing one HTTP request's full path, possibly across services | `ctx trace "METHOD /path"` (`--verbose` to attach product context per hop) — see `references/federation.md` |
 | Repo has no `.context/` yet, or `ctx status` says `needs_context` | `references/onboarding.md` |
 | Repo has real Git history / code comments / a GitLab or Jira project worth mining | `references/onboarding.md` § mining |
+| Limit mining and enrichment to Jira-backed evidence linked from this repository | Use `--scope business-linked` consistently for GitLab ingest, Jira ingest, and enrichment; keep the same `--related-depth` for Jira and enrichment — see `references/onboarding.md` § business-linked scope |
+| Synchronize stored code comments/docstrings with the complete HEAD snapshot | `ctx ingest code-comments --reconcile` — deletion happens only after the replacement snapshot is read and analyzed successfully |
+| Remove previously stored artifacts outside business-linked scope | Preview with `ctx artifacts prune --scope business-linked --related-depth <N> --json`; inspect candidate warnings, then use the identical command with `--apply` only when the user explicitly authorizes deletion |
 | Periodic health check, or after a big merge | `ctx status --json` — read `health`, `notices`, `suggested_actions` and act on them |
 | Working across multiple related repositories | `references/federation.md` |
 | A stale claim needs re-checking after code moved on | `ctx verify --stale --agent <name>` (accept is binding; reject is only ever a suggestion for a human) |
@@ -160,6 +163,8 @@ A `stale` relationship means the code changed enough that a previously-confirmed
 - Do not upgrade an `INFERENCE` to a stated fact in your own summary to the user, even implicitly.
 - Do not let a low-confidence, `--verbose`-only finding dominate your report the way a high-confidence one would; ctx's own design principle is "surface fewer findings with stronger evidence."
 - Do not run `ctx ingest gitlab`, `ctx ingest jira`, `ctx enrich`, `ctx verify --auto`, or `ctx verify --stale` unprompted — they shell out to a real agent CLI (`claude`/`codex`/`agy`) or GitLab's/Jira's network API, which costs time and, for the agent CLIs, money. Run them when the user asks to bootstrap/mine context, per `references/onboarding.md`.
+- Do not mix `all` and `business-linked` unintentionally across GitLab ingest, Jira ingest, and enrichment. `all` is the legacy default; a strict Jira-anchored workflow must pass `--scope business-linked` through all three stages and use a consistent `--related-depth`.
+- Do not run `ctx artifacts prune ... --apply` without explicit user authorization. First run the same scope/depth as a dry run, inspect the complete plan and warnings about pending candidates, and remember that prune never edits `.context/` or `.ctx-candidates/` for you.
 - Do not treat `ctx verify --knowledge --auto`'s "Auto-verified" documents as equivalent to human review when reporting to the user — say plainly that they were agent-decided.
 - Do not set up `ctx registry`/federation for a single-repository project — it exists for multi-service teams with sibling local checkouts; see `references/federation.md` for when it actually applies.
 - Do not skip the pre-commit `ctx review` or the `.context/` documentation update because a change "seems obviously fine" — those are exactly the two non-negotiable steps above.
